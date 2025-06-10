@@ -205,21 +205,21 @@
     </head>
     <body>
         <div class="container">
-            <h1>Web Scraper</h1>
-            <p>Extract and analyze content from any website with AI-powered insights.</p>
-            <p>This is a simple web scraper that uses 
+            <h1>Wikipedia Topic Explorer</h1>
+            <p>Search and analyze Wikipedia articles with AI-powered insights.</p>
+            <p>This is a simple Wikipedia topic explorer that uses 
                 <a href="https://python.langchain.com/docs/introduction/" target="_blank" rel="noopener noreferrer">LangChain</a>, 
                 <a href="https://www.docker.com/" target="_blank" rel="noopener noreferrer">Docker</a>, 
                 <a href="https://www.openai.com/" target="_blank" rel="noopener noreferrer">LLMs</a>, 
                 <a href="https://fastapi.tiangolo.com/" target="_blank" rel="noopener noreferrer">FastAPI</a> and 
                 <a href="https://www.postgresql.org/" target="_blank" rel="noopener noreferrer">PostgreSQL</a> to extract and analyze content from Wikipedia.</p>
-            <p>It is a work in progress and will be updated soon.</p>
+            <p>Simply enter a topic you'd like to learn about, and we'll fetch and summarize the relevant Wikipedia article.</p>
             
             <div class="form-container">
-                <h2>Scrape a Website</h2>
+                <h2>Search Wikipedia</h2>
                 <form id="scrapeForm">
-                    <textarea id="queryInput" class="url-input" placeholder="Enter your query with a URL (e.g., 'Can you scrape the content from https://example.com?' or 'I want to analyze this website: https://example.com')" required rows="3"></textarea>
-                    <button type="submit" class="submit-btn">Start Scraping</button>
+                    <textarea id="queryInput" class="url-input" placeholder="Enter a topic to search (e.g., 'Tell me about artificial intelligence' or 'What is quantum computing?')" required rows="3"></textarea>
+                    <button type="submit" class="submit-btn">Search Wikipedia</button>
                 </form>
                 <div id="error" class="error"></div>
                 <div id="loading" class="loading">Processing your query and scraping in progress... Please wait.</div>
@@ -318,45 +318,47 @@
                             addLogEntry('Job completed successfully!', 'success');
                             addLogEntry('Fetching scraped content...', 'info');
                             
-                            // Get the scraped content
-                            const contentResponse = await fetch(`/api/content?url=${encodeURIComponent(query)}`);
+                            // Get the scraped content using the job results
+                            const wikiUrl = jobStatus.results.url;
+                            addLogEntry(`Fetching content for URL: ${wikiUrl}`, 'info');
+                            
+                            const contentResponse = await fetch(`/api/content?url=${encodeURIComponent(wikiUrl)}`);
                             if (!contentResponse.ok) {
-                                throw new Error('Failed to fetch content');
+                                const errorData = await contentResponse.json();
+                                throw new Error(errorData.detail || 'Failed to fetch content');
                             }
                             
                             const contentData = await contentResponse.json();
+                            addLogEntry(`Received content data: ${JSON.stringify(contentData, null, 2)}`, 'info');
                             
-                            if (contentData) {
-                                addLogEntry('Content retrieved successfully', 'success');
-                                
-                                // Display the result
-                                content.innerHTML = `
-                                    <div class="endpoint">
-                                        <h3>Title</h3>
-                                        <p>${contentData.title || 'N/A'}</p>
-                                        
-                                        <h3>Content</h3>
-                                        <p>${contentData.text || 'N/A'}</p>
-                                        
-                                        <h3>Summary</h3>
-                                        <p>${contentData.summary || 'N/A'}</p>
-                                        
-                                        <h3>URL</h3>
-                                        <p><a href="${contentData.url}" target="_blank">${contentData.url}</a></p>
-                                        
-                                        <h3>Timestamp</h3>
-                                        <p>${new Date(contentData.created_at).toLocaleString()}</p>
-                                    </div>
-                                `;
-                                results.style.display = 'block';
-                                addLogEntry('Results displayed successfully', 'success');
-                            } else {
-                                addLogEntry('No content found in the response', 'warning');
+                            if (!contentData || !contentData.title || !contentData.text) {
+                                addLogEntry('Content data is incomplete', 'warning');
+                                throw new Error('Received incomplete content data');
                             }
-                            break;
+                            
+                            addLogEntry('Content retrieved successfully', 'success');
+                            
+                            // Display the result
+                            content.innerHTML = `
+                                <div class="endpoint">
+                                    <h3>Wikipedia Article</h3>
+                                    <p><a href="${contentData.url}" target="_blank">${contentData.title}</a></p>
+                                    
+                                    <h3>Summary</h3>
+                                    <p>${contentData.summary}</p>
+                                    
+                                    <h3>Full Content</h3>
+                                    <p>${contentData.text}</p>
+                                    
+                                    <h3>Last Updated</h3>
+                                    <p>${new Date(contentData.created_at).toLocaleString()}</p>
+                                </div>
+                            `;
+                            results.style.display = 'block';
+                            addLogEntry('Results displayed successfully', 'success');
                         } else if (jobStatus.status === 'failed') {
                             addLogEntry(`Job failed: ${jobStatus.error || 'Unknown error'}`, 'error');
-                            throw new Error(jobStatus.error || 'Scraping failed');
+                            throw new Error(jobStatus.error || 'Search failed');
                         } else {
                             addLogEntry(`Current status: ${jobStatus.status}`, 'info');
                         }
@@ -369,8 +371,8 @@
                     }
 
                     if (attempts >= maxAttempts) {
-                        addLogEntry('Scraping timed out after 30 seconds', 'error');
-                        throw new Error('Scraping timed out after 30 seconds');
+                        addLogEntry('Search timed out after 30 seconds', 'error');
+                        throw new Error('Search timed out after 30 seconds');
                     }
                 } catch (err) {
                     addLogEntry(`Error: ${err.message}`, 'error');
@@ -383,4 +385,4 @@
             });
         </script>
     </body>
-</html> 
+</html>

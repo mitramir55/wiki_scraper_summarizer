@@ -27,19 +27,44 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 # Setup templates
 templates = Jinja2Templates(directory="app/templates")
 
-# Initialize LLM for URL extraction
+# Initialize LLM for topic extraction
 llm = ChatOpenAI(
     temperature=0,
     model_name="gpt-3.5-turbo"
 )
 
-URL_EXTRACTION_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", """You are a URL extraction assistant. Your task is to extract a single URL from the user's query.
-    If there are multiple URLs, extract the most relevant one.
-    If there is no URL, return 'NO_URL_FOUND'.
-    Return ONLY the URL or 'NO_URL_FOUND', nothing else."""),
+TOPIC_EXTRACTION_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", """You are a topic extraction assistant. Your task is to extract a single Wikipedia topic from the user's query.
+    For example:
+    - Input: "tell me about ai" -> Output: "artificial intelligence"
+    - Input: "what is machine learning" -> Output: "machine learning"
+    - Input: "can you explain quantum computing" -> Output: "quantum computing"
+    Return ONLY the topic, nothing else."""),
     ("user", "{query}")
 ])
+
+def get_wikipedia_url(topic: str) -> str:
+    """Convert a topic to a Wikipedia URL."""
+    # Clean and format the topic
+    topic = topic.strip().lower()
+    # Replace spaces with underscores
+    topic = topic.replace(" ", "_")
+    # Create Wikipedia URL
+    return f"https://en.wikipedia.org/wiki/{topic}"
+
+async def extract_topic_from_query(query: str) -> str:
+    """Extract Wikipedia topic from user query using LLM."""
+    chain = TOPIC_EXTRACTION_PROMPT | llm
+    result = await chain.ainvoke({"query": query})
+    topic = result.content.strip()
+    
+    if not topic:
+        raise HTTPException(
+            status_code=400,
+            detail="No topic found in the query. Please provide a query containing a topic to search on Wikipedia."
+        )
+    
+    return topic
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -58,27 +83,6 @@ class ScrapeResponse(BaseModel):
     status: str
     message: str
 
-async def extract_url_from_query(query: str) -> str:
-    """Extract URL from user query using LLM."""
-    chain = URL_EXTRACTION_PROMPT | llm
-    result = await chain.ainvoke({"query": query})
-    url = result.content.strip()
-    
-    if url == "NO_URL_FOUND":
-        raise HTTPException(
-            status_code=400,
-            detail="No URL found in the query. Please provide a query containing a URL."
-        )
-    
-    # Validate the extracted URL
-    try:
-        return str(HttpUrl(url))
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid URL extracted: {url}. Please provide a query with a valid URL."
-        )
-
 @app.post("/api/scrape", response_model=ScrapeResponse)
 async def create_scraping_job(
     request: ScrapeRequest,
@@ -86,8 +90,10 @@ async def create_scraping_job(
     db: Session = Depends(get_db)
 ):
     try:
-        # Extract URL from query
-        url = await extract_url_from_query(request.query)
+        # Extract topic from query
+        topic = await extract_topic_from_query(request.query)
+        # Convert topic to Wikipedia URL
+        url = get_wikipedia_url(topic)
         
         # Check if URL already exists in database
         existing_content = db.query(ScrapedContent).filter(
@@ -151,10 +157,20 @@ async def get_scraped_content(
     url: str = None,
     db: Session = Depends(get_db)
 ):
-    query = db.query(ScrapedContent)
-    if url:
-        query = query.filter(ScrapedContent.url == url)
-    content = query.order_by(ScrapedContent.created_at.desc()).first()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL parameter is required")
+    
+    print(f"Searching for content with URL: {url}")  # Debug log
+    
+    content = db.query(ScrapedContent).filter(
+        ScrapedContent.url == url
+    ).order_by(ScrapedContent.created_at.desc()).first()
+    
+    if not content:
+        print(f"No content found for URL: {url}")  # Debug log
+        raise HTTPException(status_code=404, detail=f"No content found for URL: {url}")
+    
+    print(f"Found content with title: {content.title}")  # Debug log
     return content
 
 async def process_scraping_job(job_id: int, url: str):
@@ -165,32 +181,50 @@ async def process_scraping_job(job_id: int, url: str):
         job.status = "running"
         db.commit()
 
+        print(f"Starting scraping job for URL: {url}")  # Debug log
+
         # Initialize scraper
         async with AsyncWebScraper() as scraper:
             result = await scraper.scrape_url(url)
+            print(f"Scraping result: {result}")  # Debug log
 
             if result and 'error' not in result:
                 # Save to database
                 content = ScrapedContent(
-                    url=result.get('url', url),
+                    url=url,  # Use the Wikipedia URL
                     title=result.get('title', ''),
                     text=result.get('text', ''),
                     summary=result.get('summary', ''),
-                    extra_metadata={'timestamp': result.get('timestamp')}
+                    extra_metadata={
+                        'timestamp': result.get('timestamp'),
+                        'source': 'wikipedia'
+                    }
                 )
                 db.add(content)
+                db.commit()
+                print(f"Saved content to database with title: {content.title}")  # Debug log
 
-                # Update job status
+                # Update job status with complete results
                 job.status = "completed"
-                job.results = result
+                job.results = {
+                    'url': url,
+                    'title': content.title,
+                    'text': content.text,
+                    'summary': content.summary,
+                    'timestamp': content.extra_metadata.get('timestamp')
+                }
                 db.commit()
+                print(f"Updated job status to completed with results: {job.results}")  # Debug log
             else:
+                error_msg = result.get('error', 'Unknown error occurred') if result else 'No content found'
+                print(f"Scraping failed: {error_msg}")  # Debug log
                 job.status = "failed"
-                job.error = result.get('error', 'Unknown error occurred') if result else 'No content found'
+                job.error = error_msg
                 db.commit()
-                raise Exception(job.error)
+                raise Exception(error_msg)
 
     except Exception as e:
+        print(f"Error in scraping job: {str(e)}")  # Debug log
         job.status = "failed"
         job.error = str(e)
         db.commit()
