@@ -1,15 +1,15 @@
 # Web Scraper with AI-Powered Analysis
 
-A modern web scraping application that uses natural language processing to extract and analyze content from websites. Built with FastAPI, LangChain, Docker, and PostgreSQL.
+A Wikipedia scraping application that uses natural language processing to extract and analyze content from Wikipedia articles. Built with FastAPI, LangChain, Docker, and PostgreSQL.
 
 ## Features
 
-- **Natural Language Query Processing**: Enter queries containing a topic in natural language (e.g., "Can you scrape the content from https://example.com?")
-- **AI-Powered URL Extraction**: Uses GPT-3.5-turbo to intelligently extract URLs from user queries
-- **Content Analysis**: Automatically generates summaries of scraped content using LangChain and OpenAI
-- **Database Caching**: Stores scraped content for quick retrieval of previously scraped URLs
-- **Modern UI**: Clean and responsive interface with real-time progress updates
+- **Natural Language Query Processing**: Enter queries in natural language (e.g., "Tell me about artificial intelligence" or "What is quantum computing?")
+- **Topic Extraction**: Uses GPT-3.5-turbo to extract Wikipedia topics from user queries
+- **Content Analysis**: Generates concise summaries (300 words) of Wikipedia articles using LangChain and OpenAI
+- **Database Caching**: Stores scraped content for quick retrieval of previously searched topics
 - **Docker Support**: Easy deployment with Docker and Docker Compose
+- **Health Monitoring**: Built-in health check endpoint for monitoring application status
 
 ## Tech Stack
 
@@ -49,15 +49,14 @@ A modern web scraping application that uses natural language processing to extra
 
 ## Usage
 
-1. Enter a query containing a URL in the text area
-2. Click "Start Scraping"
+1. Enter a topic you'd like to learn about in the text area
+2. Click "Search Wikipedia"
 3. Wait for the content to be scraped and analyzed
 4. View the results, including:
-   - Page title
-   - Extracted content
-   - AI-generated summary
-   - Original URL
-   - Timestamp
+   - Article title with link to Wikipedia
+   - AI-generated summary (limited to 300 words)
+   - Full article content
+   - Last updated timestamp
 
 ## Project Structure
 
