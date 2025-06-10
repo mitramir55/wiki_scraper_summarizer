@@ -8,6 +8,7 @@ from langchain.schema import Document
 from langchain_openai import ChatOpenAI
 from langchain.chains.summarize import load_summarize_chain
 import json
+from langchain.prompts import PromptTemplate
 
 class AsyncWebScraper:
     def __init__(
@@ -40,6 +41,8 @@ class AsyncWebScraper:
         for attempt in range(self.max_retries):
             try:
                 async with self.session.get(url, timeout=self.timeout) as response:
+                    if response.status == 404:
+                        raise Exception(f"404, message='Not Found', url=URL('{url}')")
                     response.raise_for_status()
                     return await response.text()
             except Exception as e:
@@ -73,26 +76,68 @@ class AsyncWebScraper:
         docs = [Document(page_content=text)]
         split_docs = self.text_splitter.split_documents(docs)
         
-        # Use a simpler chain type for faster processing
+        # Create a proper prompt template
+        summary_template = """Write a concise summary of the following text. The summary should:
+        1. Be at most 300 words
+        2. Capture the main points and key information
+        3. Be clear and easy to understand
+        4. Maintain the most important details
+        5. Be written in a neutral, informative tone
+
+        Text to summarize:
+        {text}
+
+        Summary:"""
+        
+        prompt = PromptTemplate(
+            template=summary_template,
+            input_variables=["text"]
+        )
+        
+        # Use a custom chain with the prompt
         chain = load_summarize_chain(
             self.llm,
             chain_type="stuff",
-            verbose=False
+            verbose=False,
+            prompt=prompt
         )
         
         # Generate summary
         summary = await chain.arun(split_docs)
+        
+        # Ensure summary is not longer than 300 words
+        words = summary.split()
+        if len(words) > 300:
+            summary = ' '.join(words[:300]) + '...'
+            
         return summary
 
     def create_error_result(self, url: str, error: Exception) -> Dict[str, Any]:
         """Create a properly formatted error result."""
+        error_msg = str(error)
+        
+        # Handle 404 errors specifically
+        if "404" in error_msg and "Not Found" in error_msg:
+            # Extract the topic from the URL
+            topic = url.split("/wiki/")[-1].replace("_", " ")
+            return {
+                'url': url,
+                'error': f"Article not found: '{topic}'. Please check the spelling or try a different topic.",
+                'error_type': 'not_found',
+                'timestamp': datetime.utcnow().isoformat(),
+                'title': '',
+                'text': '',
+                'summary': ''
+            }
+        
         return {
             'url': url,
-            'error': str(error),
+            'error': error_msg,
+            'error_type': 'general_error',
             'timestamp': datetime.utcnow().isoformat(),
             'title': '',
             'text': '',
-            'summary': f"Error generating summary: {str(error)}"
+            'summary': f"Error generating summary: {error_msg}"
         }
 
     async def scrape_url(self, url: str) -> Dict[str, Any]:
@@ -115,7 +160,12 @@ class AsyncWebScraper:
                 'summary': summary
             }
             
+            # Log success without full content
+            print(f"Successfully scraped article: {content['title']}")
+            
             # Ensure all content is JSON serializable
             return json.loads(json.dumps(content))
         except Exception as e:
-            return self.create_error_result(url, e)
+            error_result = self.create_error_result(url, e)
+            print(f"Error scraping {url}: {error_result['error']}")
+            return error_result

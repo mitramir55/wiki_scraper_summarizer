@@ -24,5 +24,6 @@ class ScrapingJob(Base):
     url = Column(String)  # URL to scrape
     results = Column(JSON)  # Results of scraping
     error = Column(Text, nullable=True)
+    error_type = Column(String, nullable=True)  # general_error, not_found, etc.
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow) 
