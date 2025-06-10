@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Web Scraping with LLMs and LangChain</title>
+        <link rel="icon" type="image/png" href="/static/favicon.png">
+        <link rel="shortcut icon" type="image/png" href="/static/favicon.png">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            :root {
+                --primary-color: #2563eb;
+                --primary-hover: #1d4ed8;
+                --background-color: #f8fafc;
+                --text-color: #1e293b;
+                --border-color: #e2e8f0;
+                --success-color: #22c55e;
+                --error-color: #ef4444;
+                --warning-color: #f59e0b;
+                --info-color: #3b82f6;
+            }
+
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+                background-color: var(--background-color);
+                color: var(--text-color);
+                line-height: 1.6;
+                padding: 2rem;
+            }
+
+            .container {
+                max-width: 1000px;
+                margin: 0 auto;
+                padding: 2rem;
+                background: white;
+                border-radius: 1rem;
+                box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            }
+
+            h1 {
+                color: var(--primary-color);
+                font-size: 2.5rem;
+                margin-bottom: 1rem;
+                text-align: center;
+            }
+
+            h2 {
+                color: var(--text-color);
+                font-size: 1.8rem;
+                margin-bottom: 1.5rem;
+            }
+
+            h3 {
+                color: var(--text-color);
+                font-size: 1.4rem;
+                margin: 1.5rem 0 1rem;
+            }
+
+            p {
+                margin-bottom: 1rem;
+                color: #475569;
+            }
+
+            .form-container {
+                background: white;
+                padding: 2rem;
+                border-radius: 0.75rem;
+                border: 1px solid var(--border-color);
+                margin: 2rem 0;
+                box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+            }
+
+            .url-input {
+                width: 100%;
+                padding: 0.75rem 1rem;
+                margin: 1rem 0;
+                border: 2px solid var(--border-color);
+                border-radius: 0.5rem;
+                font-size: 1rem;
+                transition: border-color 0.2s;
+            }
+
+            .url-input:focus {
+                outline: none;
+                border-color: var(--primary-color);
+                box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+            }
+
+            .submit-btn {
+                background: var(--primary-color);
+                color: white;
+                padding: 0.75rem 1.5rem;
+                border: none;
+                border-radius: 0.5rem;
+                font-size: 1rem;
+                font-weight: 600;
+                cursor: pointer;
+                transition: background-color 0.2s;
+                width: 100%;
+            }
+
+            .submit-btn:hover {
+                background: var(--primary-hover);
+            }
+
+            .results {
+                margin-top: 2rem;
+                display: none;
+            }
+
+            .endpoint {
+                background: white;
+                padding: 1.5rem;
+                border-radius: 0.75rem;
+                border: 1px solid var(--border-color);
+                margin: 1rem 0;
+            }
+
+            .endpoint h3 {
+                color: var(--primary-color);
+                border-bottom: 2px solid var(--border-color);
+                padding-bottom: 0.5rem;
+                margin-bottom: 1rem;
+            }
+
+            .endpoint p {
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
+
+            .loading {
+                display: none;
+                text-align: center;
+                margin: 2rem 0;
+                color: var(--primary-color);
+                font-weight: 500;
+            }
+
+            .error {
+                color: var(--error-color);
+                display: none;
+                margin: 1rem 0;
+                padding: 1rem;
+                background: #fef2f2;
+                border-radius: 0.5rem;
+                border: 1px solid #fee2e2;
+            }
+
+            .log-container {
+                background: #1e293b;
+                color: #e2e8f0;
+                padding: 1.5rem;
+                border-radius: 0.75rem;
+                margin: 2rem 0;
+                font-family: 'Consolas', 'Monaco', monospace;
+                max-height: 400px;
+                overflow-y: auto;
+                box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            }
+
+            .log-container h3 {
+                color: #e2e8f0;
+                margin-bottom: 1rem;
+            }
+
+            .log-entry {
+                margin: 0.5rem 0;
+                padding: 0.5rem;
+                border-bottom: 1px solid #334155;
+                font-size: 0.9rem;
+            }
+
+            .log-time {
+                color: #94a3b8;
+                margin-right: 0.5rem;
+            }
+
+            .log-info { color: var(--info-color); }
+            .log-success { color: var(--success-color); }
+            .log-warning { color: var(--warning-color); }
+            .log-error { color: var(--error-color); }
+
+            @media (max-width: 768px) {
+                body {
+                    padding: 1rem;
+                }
+                
+                .container {
+                    padding: 1rem;
+                }
+
+                h1 {
+                    font-size: 2rem;
+                }
+
+                h2 {
+                    font-size: 1.5rem;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Web Scraper</h1>
+            <p>Extract and analyze content from any website with AI-powered insights.</p>
+            <p>This is a simple web scraper that uses 
+                <a href="https://python.langchain.com/docs/introduction/" target="_blank" rel="noopener noreferrer">LangChain</a>, 
+                <a href="https://www.docker.com/" target="_blank" rel="noopener noreferrer">Docker</a>, 
+                <a href="https://www.openai.com/" target="_blank" rel="noopener noreferrer">LLMs</a>, 
+                <a href="https://fastapi.tiangolo.com/" target="_blank" rel="noopener noreferrer">FastAPI</a> and 
+                <a href="https://www.postgresql.org/" target="_blank" rel="noopener noreferrer">PostgreSQL</a> to extract and analyze content from Wikipedia.</p>
+            <p>It is a work in progress and will be updated soon.</p>
+            
+            <div class="form-container">
+                <h2>Scrape a Website</h2>
+                <form id="scrapeForm">
+                    <textarea id="queryInput" class="url-input" placeholder="Enter your query with a URL (e.g., 'Can you scrape the content from https://example.com?' or 'I want to analyze this website: https://example.com')" required rows="3"></textarea>
+                    <button type="submit" class="submit-btn">Start Scraping</button>
+                </form>
+                <div id="error" class="error"></div>
+                <div id="loading" class="loading">Processing your query and scraping in progress... Please wait.</div>
+            </div>
+
+            <div id="logContainer" class="log-container" style="display: none;">
+                <h3>Process Log</h3>
+                <div id="logContent"></div>
+            </div>
+
+            <div id="results" class="results">
+                <h2>Scraping Results</h2>
+                <div id="content"></div>
+            </div>
+        </div>
+
+        <script>
+            function addLogEntry(message, type = 'info') {
+                const logContainer = document.getElementById('logContainer');
+                const logContent = document.getElementById('logContent');
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString();
+                
+                const entry = document.createElement('div');
+                entry.className = `log-entry log-${type}`;
+                entry.innerHTML = `<span class="log-time">[${timeStr}]</span> ${message}`;
+                
+                logContent.appendChild(entry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+
+            document.getElementById('scrapeForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const queryInput = document.getElementById('queryInput');
+                const loading = document.getElementById('loading');
+                const error = document.getElementById('error');
+                const results = document.getElementById('results');
+                const content = document.getElementById('content');
+                const logContainer = document.getElementById('logContainer');
+                const logContent = document.getElementById('logContent');
+
+                // Reset UI
+                error.style.display = 'none';
+                results.style.display = 'none';
+                loading.style.display = 'block';
+                content.innerHTML = '';
+                logContent.innerHTML = '';
+                logContainer.style.display = 'block';
+
+                try {
+                    const query = queryInput.value.trim();
+                    
+                    if (!query) {
+                        throw new Error('Please enter a query containing a URL');
+                    }
+
+                    addLogEntry('Starting new scraping job...', 'info');
+                    addLogEntry(`Processing query: ${query}`, 'info');
+
+                    // Start scraping job
+                    addLogEntry('Sending request to process query...', 'info');
+                    const scrapeResponse = await fetch('/api/scrape', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            query: query
+                        })
+                    });
+
+                    if (!scrapeResponse.ok) {
+                        const errorData = await scrapeResponse.json();
+                        throw new Error(errorData.detail || 'Failed to process query');
+                    }
+
+                    const { job_id } = await scrapeResponse.json();
+                    addLogEntry(`Job created with ID: ${job_id}`, 'success');
+                    
+                    // Polling with exponential backoff
+                    let attempts = 0;
+                    const maxAttempts = 40; // 30 seconds maximum
+                    const baseDelay = 1000; // Start with 1 second
+                    
+                    while (attempts < maxAttempts) {
+                        addLogEntry(`Checking job status (Attempt ${attempts + 1}/${maxAttempts})...`, 'info');
+                        const statusResponse = await fetch(`/api/jobs/${job_id}`);
+                        
+                        if (!statusResponse.ok) {
+                            throw new Error('Failed to check job status');
+                        }
+                        
+                        const jobStatus = await statusResponse.json();
+
+                        if (jobStatus.status === 'completed') {
+                            addLogEntry('Job completed successfully!', 'success');
+                            addLogEntry('Fetching scraped content...', 'info');
+                            
+                            // Get the scraped content
+                            const contentResponse = await fetch(`/api/content?url=${encodeURIComponent(query)}`);
+                            if (!contentResponse.ok) {
+                                throw new Error('Failed to fetch content');
+                            }
+                            
+                            const contentData = await contentResponse.json();
+                            
+                            if (contentData) {
+                                addLogEntry('Content retrieved successfully', 'success');
+                                
+                                // Display the result
+                                content.innerHTML = `
+                                    <div class="endpoint">
+                                        <h3>Title</h3>
+                                        <p>${contentData.title || 'N/A'}</p>
+                                        
+                                        <h3>Content</h3>
+                                        <p>${contentData.text || 'N/A'}</p>
+                                        
+                                        <h3>Summary</h3>
+                                        <p>${contentData.summary || 'N/A'}</p>
+                                        
+                                        <h3>URL</h3>
+                                        <p><a href="${contentData.url}" target="_blank">${contentData.url}</a></p>
+                                        
+                                        <h3>Timestamp</h3>
+                                        <p>${new Date(contentData.created_at).toLocaleString()}</p>
+                                    </div>
+                                `;
+                                results.style.display = 'block';
+                                addLogEntry('Results displayed successfully', 'success');
+                            } else {
+                                addLogEntry('No content found in the response', 'warning');
+                            }
+                            break;
+                        } else if (jobStatus.status === 'failed') {
+                            addLogEntry(`Job failed: ${jobStatus.error || 'Unknown error'}`, 'error');
+                            throw new Error(jobStatus.error || 'Scraping failed');
+                        } else {
+                            addLogEntry(`Current status: ${jobStatus.status}`, 'info');
+                        }
+
+                        // Calculate delay with exponential backoff
+                        const delay = Math.min(baseDelay * Math.pow(1.5, attempts), 5000); // Max 5 seconds
+                        addLogEntry(`Waiting ${Math.round(delay/1000)} seconds before next check...`, 'info');
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        attempts++;
+                    }
+
+                    if (attempts >= maxAttempts) {
+                        addLogEntry('Scraping timed out after 30 seconds', 'error');
+                        throw new Error('Scraping timed out after 30 seconds');
+                    }
+                } catch (err) {
+                    addLogEntry(`Error: ${err.message}`, 'error');
+                    error.textContent = err.message;
+                    error.style.display = 'block';
+                } finally {
+                    loading.style.display = 'none';
+                    addLogEntry('Process completed', 'info');
+                }
+            });
+        </script>
+    </body>
+</html> 
